@@ -56,7 +56,12 @@ function App() {
     const load = async () => {
       const a = await api<Analysis>("/api/analysis");
       setData(a);
-      setIndex(a.checkpoints.length - 1);
+      setIndex(
+        Math.max(
+          0,
+          a.checkpoints.findIndex((c) => c.ref === (a.selectedRef || a.head)),
+        ),
+      );
       setTo(a.checkpoints.length - 1);
     };
     async function connect() {

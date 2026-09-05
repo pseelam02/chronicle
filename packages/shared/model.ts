@@ -55,6 +55,7 @@ export interface Analysis {
   version: number;
   name: string;
   head: string;
+  selectedRef?: string;
   ref: string;
   commits: Commit[];
   refs: { name: string; sha: string }[];

@@ -210,6 +210,7 @@ export async function analyze(
     version: 1,
     name: path.basename(root),
     head: actualHead,
+    selectedRef: head,
     ref: o.ref,
     commits,
     refs: allRefs,

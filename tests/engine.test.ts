@@ -14,6 +14,7 @@ test("real private checkout: history, staged, untracked and progress without mut
       stages.add(p.stage),
     );
     assert.equal(a.commits.length, 4);
+    assert.equal(a.selectedRef, a.head);
     assert.ok(stages.has("Parsing TypeScript"));
     const first = a.checkpoints[0].files[0].symbols[0];
     const last = a.checkpoints[3].files
