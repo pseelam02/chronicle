@@ -902,9 +902,9 @@ footer span:last-child {
   }
   .graph > svg:not(.minimap) {
     padding: 4px;
-    width: 780px;
+    width: 100%;
     max-width: none;
-    margin-left: -110px;
+    margin-left: 0;
   }
   .graph-footer {
     font-size: 8px;

@@ -15,6 +15,7 @@ import type {
 import { compare, blast } from "../analyzer/temporal.ts";
 import { explain, cochanges } from "../analyzer/evidence.ts";
 import { api, auth } from "./api.ts";
+import { fileSymbol } from "../shared/files.ts";
 import "./style.css";
 class Boundary extends Component<{ children: ReactNode }, { error: boolean }> {
   state = { error: false };
@@ -124,10 +125,12 @@ function App() {
   const nodes = useMemo(
     () =>
       cp?.files
-        .flatMap((f) => f.symbols)
+        .flatMap((f) =>
+          filter === "file" || filter === "test" ? [fileSymbol(f)] : f.symbols,
+        )
         .filter(
           (s) =>
-            (filter === "all" || s.kind === filter) &&
+            (filter === "all" || filter === "file" || s.kind === filter) &&
             (s.name + " " + s.path).toLowerCase().includes(query.toLowerCase()),
         ) || [],
     [cp, filter, query],
@@ -139,12 +142,12 @@ function App() {
         <div className="loading-orbit">◷</div>
         <p className="eyebrow">YOUR REPOSITORY, THROUGH TIME</p>
         <h1>
-          {failure && !connected
-            ? "Waiting for your local session"
+          {failure
+            ? "Analysis needs attention"
             : progress?.stage || "Connecting to Chronicle"}
         </h1>
         <p>
-          {failure && !connected
+          {failure
             ? failure
             : progress?.detail || "All analysis happens on this computer."}
         </p>
@@ -285,6 +288,8 @@ function App() {
                   "type",
                   "method",
                   "route",
+                  "file",
+                  "test",
                 ].map((k) => (
                   <option key={k} value={k}>
                     {k === "all" ? "All symbols" : k}
@@ -810,6 +815,48 @@ function Detail({
         </span>
       </div>
       <p className="muted">{node.evidence}</p>
+      {node.lineage?.length ? (
+        <div className="notice">
+          <strong>Possible split / merge ancestry</strong>
+          {node.lineage.map((l) => (
+            <p key={l.id}>
+              {l.kind} candidate · {Math.round(l.confidence * 100)}% ·{" "}
+              {l.evidence}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <h3>Dependencies & dependents</h3>
+      {e.occurrences.at(-1) &&
+        data.checkpoints
+          .find((c) => c.ref === e.occurrences.at(-1)!.checkpoint)
+          ?.edges.filter(
+            (edge) => edge.source === node.id || edge.target === node.id,
+          )
+          .map((edge, i) => (
+            <p className="dependency-row" key={i}>
+              <strong>
+                {edge.source === node.id ? "Outgoing" : "Incoming"} ·{" "}
+                {edge.kind}
+              </strong>
+              <br />
+              {edge.evidence}{" "}
+              <span className="muted">
+                ({Math.round(edge.confidence * 100)}%)
+              </span>
+            </p>
+          ))}
+      {!data.checkpoints
+        .at(-1)
+        ?.files.flatMap((f) => f.symbols)
+        .some((s) => s.id === node.id) &&
+        node.kind !== "file" &&
+        node.kind !== "test" && (
+          <p className="notice">
+            This declaration is absent from the latest checkpoint. It may have
+            been deleted or its lineage may be unresolved.
+          </p>
+        )}
       <h3>Why does this exist?</h3>
       <p>{e.summary}</p>
       <p className="notice">{e.caveat}</p>

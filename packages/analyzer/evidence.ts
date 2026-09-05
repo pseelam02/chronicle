@@ -1,7 +1,10 @@
 import type { Analysis, SymbolNode } from "../shared/model.ts";
+import { fileSymbol } from "../shared/files.ts";
 export function explain(a: Analysis, id: string) {
   const occurrences = a.checkpoints.flatMap((c) => {
-    const s = c.files.flatMap((f) => f.symbols).find((s) => s.id === id);
+    const s = c.files
+      .flatMap((f) => [fileSymbol(f), ...f.symbols])
+      .find((s) => s.id === id);
     return s ? [{ checkpoint: c.ref, commit: c.commit, symbol: s }] : [];
   });
   if (!occurrences.length) throw Error("Unknown symbol");
