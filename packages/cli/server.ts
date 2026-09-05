@@ -166,7 +166,9 @@ export async function startServer(root: string, options: Options) {
         }
         if (u.pathname === "/api/commit" && req.method === "GET") {
           const sha = u.searchParams.get("sha") || "";
-          const c = data.commits.find((c) => c.sha === sha);
+          const c =
+            data.commits.find((c) => c.sha === sha) ||
+            data.checkpoints.find((c) => c.commit.sha === sha)?.commit;
           if (!c) return send(res, 404, { error: "Unknown commit" });
           return send(res, 200, {
             commit: c,
