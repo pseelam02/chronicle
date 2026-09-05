@@ -123,7 +123,20 @@ export async function analyze(
       const c = (await history(root, sha)).at(-1);
       if (c) await snapshot(sha, c, r.name);
     }
+    try {
+      const base = (await git(root, ["merge-base", head, sha])).trim();
+      if (!checkpoints.some((c) => c.ref === base)) {
+        const c = (await history(root, base)).at(-1);
+        if (c) await snapshot(base, c, `merge-base:${r.name}`);
+      }
+    } catch {
+      /* Unrelated branch histories have no merge base. */
+    }
   }
+  if (allRefs.length > 20)
+    warnings.push(
+      "Only the first 20 branch/tag tips are preloaded; use the commit selector or --ref for others.",
+    );
   const current = commits.at(-1)!;
   if (actualHead !== head) {
     const c = (await history(root, actualHead)).at(-1)!;

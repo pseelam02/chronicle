@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 import type { Analysis, Options, Progress } from "../shared/model.ts";
 import { diff } from "../analyzer/git.ts";
+import { git } from "../analyzer/git.ts";
+import { matchLineage } from "../analyzer/temporal.ts";
 import { synthesize, selectedEvidence } from "./ai.ts";
 import { explain, cochanges } from "../analyzer/evidence.ts";
 export async function startServer(root: string, options: Options) {
@@ -14,6 +16,7 @@ export async function startServer(root: string, options: Options) {
   const clients = new Set<http.ServerResponse>();
   let origin = "";
   let aiBusy = false;
+  let extraWorker: Worker | undefined;
   const send = (res: http.ServerResponse, code: number, value: unknown) => {
     res.writeHead(code, { "Content-Type": "application/json" });
     res.end(JSON.stringify(value));
@@ -79,6 +82,104 @@ export async function startServer(root: string, options: Options) {
           return send(res, 409, { error: error || "Analysis in progress" });
         if (u.pathname === "/api/analysis" && req.method === "GET")
           return send(res, 200, data);
+        if (u.pathname === "/api/checkpoint" && req.method === "POST") {
+          if (extraWorker)
+            return send(res, 429, {
+              error: "A checkpoint is already being analyzed",
+            });
+          let raw = "";
+          for await (const chunk of req) {
+            raw += chunk.toString();
+            if (raw.length > 4096)
+              return send(res, 413, { error: "Request too large" });
+          }
+          const body = JSON.parse(raw);
+          if (
+            typeof body.sha !== "string" ||
+            !data.commits.some((c) => c.sha === body.sha)
+          )
+            return send(res, 400, {
+              error: "Choose a commit from this repository history",
+            });
+          if (data.checkpoints.some((c) => c.ref === body.sha))
+            return send(res, 200, data);
+          if (data.checkpoints.length >= 80)
+            return send(res, 429, {
+              error: "Session checkpoint limit reached. Restart with --ref.",
+            });
+          const checkpoint = await new Promise<Analysis>((resolve, reject) => {
+            const w = new Worker(new URL("./worker.js", import.meta.url), {
+              workerData: {
+                root,
+                options: {
+                  ...options,
+                  ref: body.sha,
+                  checkpoints: 2,
+                  force: true,
+                },
+              },
+              resourceLimits: { maxOldGenerationSizeMb: 768 },
+            });
+            extraWorker = w;
+            const t = setTimeout(() => {
+              void w.terminate();
+              reject(Error("Checkpoint timed out"));
+            }, 120000);
+            w.on("message", (m) => {
+              if (m.type === "result") {
+                clearTimeout(t);
+                resolve(m.data);
+              }
+              if (m.type === "error") {
+                clearTimeout(t);
+                reject(Error("Checkpoint failed"));
+              }
+              if (m.type === "progress")
+                for (const c of clients)
+                  c.write(`data: ${JSON.stringify(m)}\n\n`);
+            });
+            w.on("error", () => {
+              clearTimeout(t);
+              reject(Error("Checkpoint worker failed"));
+            });
+          }).finally(() => {
+            void extraWorker?.terminate();
+            extraWorker = undefined;
+          });
+          const cp = checkpoint.checkpoints.find((c) => c.ref === body.sha)!;
+          const position = data.commits.findIndex((c) => c.sha === body.sha);
+          const prior = [...data.checkpoints]
+            .filter(
+              (c) =>
+                data!.commits.findIndex((x) => x.sha === c.ref) < position &&
+                data!.commits.some((x) => x.sha === c.ref),
+            )
+            .at(-1);
+          matchLineage(prior, cp);
+          data.checkpoints.push(cp);
+          return send(res, 200, data);
+        }
+        if (u.pathname === "/api/commit" && req.method === "GET") {
+          const sha = u.searchParams.get("sha") || "";
+          const c = data.commits.find((c) => c.sha === sha);
+          if (!c) return send(res, 404, { error: "Unknown commit" });
+          return send(res, 200, {
+            commit: c,
+            diff: data.demo
+              ? "Synthetic commit. Inspect the before and after checkpoints."
+              : (
+                  await git(root, [
+                    "show",
+                    "--format=",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--find-renames",
+                    sha,
+                    "--",
+                  ])
+                ).slice(0, 120000),
+          });
+        }
         if (u.pathname === "/api/evidence" && req.method === "GET") {
           const id = u.searchParams.get("id") || "";
           return send(res, 200, {
@@ -207,6 +308,7 @@ export async function startServer(root: string, options: Options) {
     close: async () => {
       clearInterval(heartbeat);
       await worker?.terminate();
+      await extraWorker?.terminate();
       for (const c of clients) c.end();
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));

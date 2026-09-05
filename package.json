@@ -26,7 +26,8 @@
     "format": "prettier --write packages tests scripts *.json *.md",
     "format:check": "prettier --check packages tests scripts *.json *.md",
     "prepack": "npm run build",
-    "test:e2e": "tsx --test tests/browser.e2e.ts"
+    "test:e2e": "tsx --test tests/browser.e2e.ts",
+    "test:live-ai": "tsx scripts/live-ai.ts"
   },
   "dependencies": {
     "openai": "7.10.0",

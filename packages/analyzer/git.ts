@@ -125,6 +125,29 @@ export async function safeRead(root: string, p: string): Promise<string> {
   return readFile(actual, "utf8");
 }
 export async function diff(root: string, from: string, to: string) {
+  if (from === to) return "";
+  if (from === "STAGED" && to === "WORKTREE")
+    return (
+      await git(root, ["diff", "--no-ext-diff", "--no-textconv", "--"])
+    ).slice(0, 120000);
+  if (from === "WORKTREE" && to === "STAGED")
+    return (
+      await git(root, ["diff", "-R", "--no-ext-diff", "--no-textconv", "--"])
+    ).slice(0, 120000);
+  if (from === "STAGED" || from === "WORKTREE") {
+    const ref = await resolveRef(root, to);
+    return (
+      await git(root, [
+        "diff",
+        "-R",
+        "--no-ext-diff",
+        "--no-textconv",
+        ...(from === "STAGED" ? ["--cached"] : []),
+        ref,
+        "--",
+      ])
+    ).slice(0, 120000);
+  }
   const a = await resolveRef(root, from);
   const args = [
     "diff",

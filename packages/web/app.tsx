@@ -48,6 +48,7 @@ function App() {
   const [from, setFrom] = useState(0);
   const [to, setTo] = useState(1);
   const [diffText, setDiff] = useState("");
+  const [adding, setAdding] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     let retry: ReturnType<typeof setTimeout>;
@@ -311,6 +312,42 @@ function App() {
           </section>
         ) : (
           <section className="explorer compare">
+            <div className="toolbar">
+              <label htmlFor="commit-select">Analyze another commit</label>
+              <select
+                id="commit-select"
+                disabled={adding || data.demo}
+                defaultValue=""
+                onChange={async (e) => {
+                  const sha = e.target.value;
+                  if (!sha) return;
+                  setAdding(true);
+                  try {
+                    const next = await api<Analysis>("/api/checkpoint", {
+                      sha,
+                    });
+                    setData(next);
+                    setTo(next.checkpoints.findIndex((c) => c.ref === sha));
+                  } catch (err) {
+                    setDiff((err as Error).message);
+                  } finally {
+                    setAdding(false);
+                  }
+                }}
+              >
+                <option value="">Choose from local history…</option>
+                {data.commits.map((c) => (
+                  <option key={c.sha} value={c.sha}>
+                    {c.sha.slice(0, 7)} · {c.subject.slice(0, 55)}
+                  </option>
+                ))}
+              </select>
+              {adding && (
+                <span className="muted">
+                  {progress?.stage || "Analyzing checkpoint"}…
+                </span>
+              )}
+            </div>
             <div className="toolbar">
               <strong>{mode}</strong>
               <select
@@ -744,6 +781,7 @@ function Detail({
   const [synthesis, setSynthesis] = useState("");
   const [busy, setBusy] = useState(false);
   const [commit, setCommit] = useState("");
+  const [commitDiff, setCommitDiff] = useState("");
   useEffect(() => {
     setConsent(false);
     setSynthesis("");
@@ -783,7 +821,15 @@ function Detail({
           </span>
           <h4>{item.subject}</h4>
           <p>{item.claim}</p>
-          <button className="text-button" onClick={() => setCommit(item.sha)}>
+          <button
+            className="text-button"
+            onClick={() => {
+              setCommit(item.sha);
+              api<{ diff: string }>(`/api/commit?sha=${item.sha}`)
+                .then((r) => setCommitDiff(r.diff))
+                .catch((err) => setCommitDiff(err.message));
+            }}
+          >
             {item.sha.slice(0, 7)} · {item.author} ↗
           </button>
         </article>
@@ -791,6 +837,7 @@ function Detail({
       {commit && (
         <div className="notice">
           <strong>Local commit {commit.slice(0, 7)}</strong>
+          <pre>{commitDiff}</pre>
           <p>
             {data.commits.find((c) => c.sha === commit)?.body ||
               data.commits.find((c) => c.sha === commit)?.subject}
