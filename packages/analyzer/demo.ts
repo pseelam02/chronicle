@@ -10,6 +10,8 @@ export function demo(): Analysis {
         "export interface Item { price: number; quantity: number }\nexport function subtotal(items: Item[]) { return items.reduce((n, i) => n + i.price * i.quantity, 0); }",
       "src/core/currency.ts":
         "export function formatMoney(value: number) { return `$${value.toFixed(2)}`; }",
+      "src/core/legacy.ts":
+        "export function legacyTax(value: number) { return value * 0.05; }",
     },
     {
       "src/api/checkout.ts":
@@ -58,6 +60,7 @@ export function demo(): Analysis {
   versions.forEach((v, i) => {
     Object.assign(sources, v);
     if (i === 3) delete sources["src/core/cart.ts"];
+    if (i === 5) delete sources["src/core/legacy.ts"];
     const commit: Commit = {
       sha: (i + 1).toString(16).repeat(40),
       parents: i ? [commits[i - 1].sha] : [],

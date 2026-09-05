@@ -42,7 +42,7 @@ export async function git(root: string, args: string[]): Promise<string> {
 }
 export async function discover(input: string) {
   const p = await realpath(path.resolve(input));
-  return (await git(p, ["rev-parse", "--show-toplevel"])).trim();
+  return realpath((await git(p, ["rev-parse", "--show-toplevel"])).trim());
 }
 export async function resolveRef(root: string, ref: string) {
   if (ref.startsWith("-") || ref.length > 200) throw Error("Invalid ref");

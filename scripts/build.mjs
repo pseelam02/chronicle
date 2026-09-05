@@ -1,5 +1,6 @@
 import { build } from "esbuild";
-import { mkdir, copyFile } from "node:fs/promises";
+import { mkdir, copyFile, writeFile, chmod } from "node:fs/promises";
+import { tsImport } from "tsx/esm/api";
 await mkdir("dist/web", { recursive: true });
 await build({
   entryPoints: ["packages/cli/cli.ts", "packages/cli/worker.ts"],
@@ -20,3 +21,9 @@ await build({
   target: "es2022",
 });
 await copyFile("packages/web/index.html", "dist/web/index.html");
+const { demo } = await tsImport(
+  "../packages/analyzer/demo.ts",
+  import.meta.url,
+);
+await writeFile("dist/demo.json", JSON.stringify(demo()));
+await chmod("dist/cli.js", 0o755);

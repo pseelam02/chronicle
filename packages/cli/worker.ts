@@ -1,11 +1,16 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { analyze } from "../analyzer/engine.ts";
 import { cacheKey, readCache, writeCache } from "../analyzer/cache.ts";
-import { demo } from "../analyzer/demo.ts";
+import { readFile } from "node:fs/promises";
 async function run() {
   const { root, options } = workerData;
   if (options.demo) {
-    parentPort?.postMessage({ type: "result", data: demo() });
+    parentPort?.postMessage({
+      type: "result",
+      data: JSON.parse(
+        await readFile(new URL("./demo.json", import.meta.url), "utf8"),
+      ),
+    });
     return;
   }
   parentPort?.postMessage({
