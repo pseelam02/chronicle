@@ -1,6 +1,13 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdir, readFile, rename, writeFile, stat } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rename,
+  writeFile,
+  stat,
+  unlink,
+} from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { git, safeRead } from "./git.ts";
 import { hash } from "./parser.ts";
@@ -85,6 +92,10 @@ export async function writeCache(key: string, a: Analysis, dir = cacheDir()) {
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const dest = path.join(dir, key + ".json");
   const tmp = dest + "." + randomUUID() + ".tmp";
-  await writeFile(tmp, JSON.stringify(a), { mode: 0o600 });
-  await rename(tmp, dest);
+  try {
+    await writeFile(tmp, JSON.stringify(a), { mode: 0o600 });
+    await rename(tmp, dest);
+  } finally {
+    await unlink(tmp).catch(() => {});
+  }
 }

@@ -23,12 +23,13 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "lint": "eslint packages tests scripts",
-    "format": "prettier --write packages tests scripts *.json *.md",
-    "format:check": "prettier --check packages tests scripts *.json *.md",
+    "format": "prettier --write packages tests scripts docs *.json *.md",
+    "format:check": "prettier --check packages tests scripts docs *.json *.md",
     "prepack": "npm run build",
     "test:e2e": "tsx --test tests/browser.e2e.ts",
     "test:live-ai": "tsx scripts/live-ai.ts",
-    "test:pack": "tsx scripts/packed-test.ts"
+    "test:pack": "tsx scripts/packed-test.ts",
+    "audit:secrets": "node scripts/audit-history.mjs"
   },
   "dependencies": {
     "openai": "7.10.0",
