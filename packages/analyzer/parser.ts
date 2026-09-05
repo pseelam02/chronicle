@@ -91,6 +91,8 @@ export function parseFile(p: string, source: string): FileNode {
         kind,
         line: ast.getLineAndCharacterOfPosition(n.getStart(ast)).line + 1,
         end: ast.getLineAndCharacterOfPosition(n.end).line + 1,
+        offset: n.getStart(ast),
+        endOffset: n.end,
         signature: text
           .slice(0, text.indexOf("{") < 0 ? 160 : text.indexOf("{"))
           .slice(0, 220),
@@ -159,15 +161,19 @@ export function dependencies(
         evidence: `import ${imp.name} from ${imp.specifier}`,
       });
       const dest = target.symbols.find(
-        (s) => s.name === (imp.imported || imp.name) && s.exported,
+        (s) =>
+          (s.name === (imp.imported || imp.name) ||
+            (imp.imported === "default" &&
+              s.signature.startsWith("export default"))) &&
+          s.exported,
       );
       if (dest) bindings.set(imp.name, dest);
       if (dest) {
         for (const sym of file.symbols) {
-          const body = (sources.get(file.path) || "")
-            .split("\n")
-            .slice(sym.line - 1, sym.end)
-            .join("\n");
+          const body = (sources.get(file.path) || "").slice(
+            sym.offset,
+            sym.endOffset,
+          );
           const subtree = ts.createSourceFile(
             file.path,
             body,
@@ -208,7 +214,11 @@ export function dependencies(
       const line =
         source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1;
       const owner = file.symbols
-        .filter((s) => s.line <= line && s.end >= line)
+        .filter((s) =>
+          s.offset !== undefined && s.endOffset !== undefined
+            ? s.offset <= n.getStart(source) && s.endOffset >= n.end
+            : s.line <= line && s.end >= line,
+        )
         .sort((a, b) => a.end - a.line - (b.end - b.line))[0];
       if (owner && ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
         const dest = bindings.get(n.expression.text);

@@ -64,7 +64,7 @@ export async function cacheKey(root: string, o: Options) {
       status,
       content,
       VERSION,
-      "typescript-5.9.3-schema3",
+      "typescript-5.9.3-schema4",
       o.ref,
       o.checkpoints,
     ]),

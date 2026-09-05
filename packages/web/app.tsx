@@ -389,6 +389,7 @@ function App() {
               />
             ) : (
               <Impact
+                data={data}
                 a={data.checkpoints[from]}
                 b={data.checkpoints[to]}
                 onSelect={setSelected}
@@ -739,15 +740,42 @@ function Comparison({
   );
 }
 function Impact({
+  data,
   a,
   b,
   onSelect,
 }: {
+  data: Analysis;
   a: Checkpoint;
   b: Checkpoint;
   onSelect: (s: SymbolNode) => void;
 }) {
   const items = blast(a, b);
+  const filePaths = items
+    .filter((i) => i.id.startsWith("file:"))
+    .map((i) => i.id.slice(5));
+  const missing = filePaths.filter(
+    (p) =>
+      !/(test|spec)\.tsx?$/.test(p) &&
+      !b.edges.some((e) => e.kind === "tests" && e.target === `file:${p}`),
+  );
+  const signals = [
+    ...new Map(
+      items
+        .filter((i) => i.node)
+        .flatMap((i) => cochanges(data, i.id))
+        .map((c) => [c.path, c]),
+    ).values(),
+  ].slice(0, 8);
+  const hubs = items
+    .filter((i) => i.node)
+    .map((i) => ({
+      ...i,
+      degree: b.edges.filter((e) => e.target === i.id || e.source === i.id)
+        .length,
+    }))
+    .sort((a, b) => b.degree - a.degree)
+    .slice(0, 5);
   return (
     <div className="comparison-body">
       <p className="notice">
@@ -755,6 +783,54 @@ function Impact({
         sampled history may be incomplete.
       </p>
       <h2>{items.length} potentially affected nodes</h2>
+      <div className="impact-summary">
+        <span>
+          {items.filter((i) => i.node?.kind === "route").length} routes
+        </span>
+        <span>
+          {filePaths.filter((p) => /\.(test|spec)\.tsx?$/.test(p)).length} test
+          files
+        </span>
+        <span>
+          {
+            items.filter((i) =>
+              ["type", "interface"].includes(i.node?.kind || ""),
+            ).length
+          }{" "}
+          shared contracts
+        </span>
+      </div>
+      <details className="notice">
+        <summary>
+          {missing.length} files without an inferred related test
+        </summary>
+        {missing.map((p) => (
+          <p key={p}>
+            <code>{p}</code>
+          </p>
+        ))}
+        <p>Missing graph evidence does not prove missing test coverage.</p>
+      </details>
+      {!!signals.length && (
+        <details className="notice">
+          <summary>Historical co-change signals</summary>
+          {signals.map((c) => (
+            <p key={c.path}>
+              {c.path} · {c.count} sampled transitions
+            </p>
+          ))}
+        </details>
+      )}
+      {!!hubs.length && (
+        <details className="notice">
+          <summary>Most connected affected symbols</summary>
+          {hubs.map((i) => (
+            <p key={i.id}>
+              {i.node?.name} · {i.degree} relationships
+            </p>
+          ))}
+        </details>
+      )}
       {items.map((i) => (
         <button
           className="symbol-row impact-row"

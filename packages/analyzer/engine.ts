@@ -110,7 +110,10 @@ export async function analyze(
       edges: dependencies(files, sources),
     };
     emit("Matching symbol lineage", 1, 1, label);
-    const previous = checkpoints.at(-1);
+    const previous =
+      ref === "STAGED"
+        ? checkpoints.find((c) => c.ref === actualHead)
+        : checkpoints.at(-1);
     const renames = new Map<string, string>();
     if (
       previous &&

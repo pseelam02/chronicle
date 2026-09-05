@@ -6,6 +6,8 @@ export interface SymbolNode {
   kind: string;
   line: number;
   end: number;
+  offset?: number;
+  endOffset?: number;
   signature: string;
   fingerprint: string;
   contentHash: string;
