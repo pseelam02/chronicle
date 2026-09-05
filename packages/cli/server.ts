@@ -34,6 +34,11 @@ export async function startServer(root: string, options: Options) {
       if (req.headers["sec-fetch-site"] === "cross-site")
         return send(res, 403, { error: "Cross-site request denied" });
       const u = new URL(req.url || "/", origin);
+      if (u.pathname === "/favicon.ico") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
       if (u.pathname.startsWith("/api/")) {
         const provided = String(req.headers.authorization || "").replace(
           /^Bearer /,

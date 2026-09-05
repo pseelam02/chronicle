@@ -7,3 +7,5 @@ playwright-report/
 *.tgz
 .env
 .DS_Store
+.playwright-mcp/
+chronicle-*.png
