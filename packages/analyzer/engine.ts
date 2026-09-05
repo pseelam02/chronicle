@@ -1,7 +1,7 @@
 import path from "node:path";
 import { git, history, refs, resolveRef, tree, safeRead } from "./git.ts";
 import { parseFile, dependencies, hash } from "./parser.ts";
-import { matchLineage, selectCheckpoints } from "./temporal.ts";
+import { matchLineage, selectCheckpoints, temporalIndex } from "./temporal.ts";
 import type {
   Analysis,
   Checkpoint,
@@ -90,7 +90,10 @@ export async function analyze(
           cached = { file: parseFile(e.path, source), source };
           parsed.set(`${e.path}:${e.hash || hash(source)}`, cached);
         }
-        files.push(structuredClone(cached.file));
+        const file = structuredClone(cached.file);
+        for (const s of file.symbols)
+          s.id = hash(`${ref}:${s.id}`).slice(0, 20);
+        files.push(file);
         sources.set(e.path, cached.source);
       } catch {
         warnings.push(
@@ -107,7 +110,38 @@ export async function analyze(
       edges: dependencies(files, sources),
     };
     emit("Matching symbol lineage", 1, 1, label);
-    matchLineage(checkpoints.at(-1), cp);
+    const previous = checkpoints.at(-1);
+    const renames = new Map<string, string>();
+    if (
+      previous &&
+      /^[a-f0-9]{40,64}$/.test(previous.ref) &&
+      /^[a-f0-9]{40,64}$/.test(ref)
+    ) {
+      const parts = (
+        await git(root, [
+          "diff",
+          "--name-status",
+          "-z",
+          "--find-renames",
+          "--no-ext-diff",
+          "--no-textconv",
+          previous.ref,
+          ref,
+          "--",
+        ])
+      ).split("\0");
+      cp.changes = [];
+      for (let i = 0; i < parts.length - 1;) {
+        const status = parts[i++];
+        const p = parts[i++];
+        if (status.startsWith("R")) {
+          const next = parts[i++];
+          renames.set(p, next);
+          cp.changes.push({ status, path: next, oldPath: p });
+        } else cp.changes.push({ status, path: p });
+      }
+    }
+    matchLineage(previous, cp, renames);
     checkpoints.push(cp);
   };
   for (const c of selected)
@@ -169,5 +203,6 @@ export async function analyze(
     checkpoints,
     analyzedAt: new Date().toISOString(),
     warnings: [...new Set(warnings)],
+    temporal: temporalIndex(checkpoints),
   };
 }

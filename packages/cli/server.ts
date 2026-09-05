@@ -5,7 +5,7 @@ import { Worker } from "node:worker_threads";
 import type { Analysis, Options, Progress } from "../shared/model.ts";
 import { diff } from "../analyzer/git.ts";
 import { git } from "../analyzer/git.ts";
-import { matchLineage } from "../analyzer/temporal.ts";
+import { matchLineage, temporalIndex } from "../analyzer/temporal.ts";
 import { synthesize, selectedEvidence } from "./ai.ts";
 import { explain, cochanges } from "../analyzer/evidence.ts";
 export async function startServer(root: string, options: Options) {
@@ -142,6 +142,10 @@ export async function startServer(root: string, options: Options) {
               clearTimeout(t);
               reject(Error("Checkpoint worker failed"));
             });
+            w.on("exit", () => {
+              clearTimeout(t);
+              reject(Error("Checkpoint worker stopped"));
+            });
           }).finally(() => {
             void extraWorker?.terminate();
             extraWorker = undefined;
@@ -157,6 +161,7 @@ export async function startServer(root: string, options: Options) {
             .at(-1);
           matchLineage(prior, cp);
           data.checkpoints.push(cp);
+          data.temporal = temporalIndex(data.checkpoints);
           return send(res, 200, data);
         }
         if (u.pathname === "/api/commit" && req.method === "GET") {

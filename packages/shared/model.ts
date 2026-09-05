@@ -13,6 +13,12 @@ export interface SymbolNode {
   exported: boolean;
   confidence: number;
   evidence: string;
+  lineage?: {
+    id: string;
+    kind: "split" | "merge";
+    confidence: number;
+    evidence: string;
+  }[];
 }
 export interface Edge {
   source: string;
@@ -41,6 +47,7 @@ export interface Checkpoint {
   commit: Commit;
   files: FileNode[];
   edges: Edge[];
+  changes?: { status: string; path: string; oldPath?: string }[];
 }
 export interface Analysis {
   version: number;
@@ -53,6 +60,10 @@ export interface Analysis {
   analyzedAt: string;
   warnings: string[];
   demo?: boolean;
+  temporal?: {
+    nodes: Record<string, string[]>;
+    edges: Record<string, string[]>;
+  };
 }
 export interface Progress {
   stage: string;

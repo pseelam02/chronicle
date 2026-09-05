@@ -7,6 +7,7 @@ export async function launch(
 ) {
   const child = spawn(process.execPath, [executable, ...args, "--no-open"], {
     env,
+    cwd: path.dirname(executable),
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";

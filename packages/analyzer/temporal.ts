@@ -22,6 +22,7 @@ export function selectCheckpoints(
 export function matchLineage(
   previous: Checkpoint | undefined,
   next: Checkpoint,
+  renames: Map<string, string> = new Map(),
 ) {
   if (!previous) return;
   const old = previous.files.flatMap((f) => f.symbols);
@@ -38,12 +39,37 @@ export function matchLineage(
       candidates = old.filter(
         (o) =>
           !used.has(o.id) &&
+          renames.get(o.path) === n.path &&
+          o.qualified === n.qualified,
+      );
+      if (candidates.length) {
+        confidence = 0.95;
+        evidence = "Git file rename and same qualified declaration";
+      }
+    }
+    if (!candidates.length) {
+      candidates = old.filter(
+        (o) =>
+          !used.has(o.id) &&
           o.kind === n.kind &&
           o.fingerprint === n.fingerprint,
       );
       confidence = 0.85;
       evidence =
         "Unique normalized AST fingerprint across adjacent checkpoints";
+      const sameNew = next.files
+        .flatMap((f) => f.symbols)
+        .filter((s) => s.kind === n.kind && s.fingerprint === n.fingerprint);
+      if (candidates.length > 1 || sameNew.length > 1) {
+        n.lineage = candidates.map((o) => ({
+          id: o.id,
+          kind: sameNew.length > 1 ? "split" : "merge",
+          confidence: 0.45,
+          evidence:
+            "Ambiguous shared AST structure; candidate relationship only",
+        }));
+        candidates = [];
+      }
     }
     if (candidates.length === 1) {
       const o = candidates[0];
@@ -108,12 +134,28 @@ export function blast(a: Checkpoint, b: Checkpoint) {
   const affected = new Map(
     [...changed].map((id) => [id, "Directly changed declaration or file"]),
   );
+  for (const f of [...a.files, ...b.files]) {
+    const before = a.files.find((x) => x.path === f.path);
+    const after = b.files.find((x) => x.path === f.path);
+    if (before?.hash !== after?.hash)
+      affected.set(`file:${f.path}`, "File content added, deleted or modified");
+  }
   const edges = [...a.edges, ...b.edges];
   let grew = true;
   while (grew && affected.size < 10000) {
     grew = false;
     for (const e of edges)
-      if (affected.has(e.target) && !affected.has(e.source)) {
+      if (
+        e.kind === "defines" &&
+        affected.has(e.source) &&
+        !affected.has(e.target)
+      ) {
+        affected.set(
+          e.target,
+          `Defined in potentially affected file ${e.source}`,
+        );
+        grew = true;
+      } else if (affected.has(e.target) && !affected.has(e.source)) {
         affected.set(e.source, `${e.kind} → ${e.target}: ${e.evidence}`);
         grew = true;
       }
@@ -125,4 +167,15 @@ export function blast(a: Checkpoint, b: Checkpoint) {
       b.files.flatMap((f) => f.symbols).find((s) => s.id === id) ||
       a.files.flatMap((f) => f.symbols).find((s) => s.id === id),
   }));
+}
+export function temporalIndex(checkpoints: Checkpoint[]) {
+  const nodes: Record<string, string[]> = {};
+  const edges: Record<string, string[]> = {};
+  for (const c of checkpoints) {
+    for (const n of c.files.flatMap((f) => f.symbols))
+      (nodes[n.id] ??= []).push(c.ref);
+    for (const e of c.edges)
+      (edges[`${e.source}|${e.kind}|${e.target}`] ??= []).push(c.ref);
+  }
+  return { nodes, edges };
 }
