@@ -3,6 +3,27 @@ import assert from "node:assert/strict";
 import OpenAI from "openai";
 import { validateSynthesis, synthesize } from "../packages/cli/ai.ts";
 import { demo } from "../packages/analyzer/demo.ts";
+test("SDK timeout is bounded and reported without credentials", async () => {
+  const a = demo();
+  const client = new OpenAI({
+    apiKey: "test-credential",
+    timeout: 20,
+    maxRetries: 0,
+    fetch: async (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+      }),
+  });
+  const started = Date.now();
+  await assert.rejects(
+    () =>
+      synthesize(a, a.checkpoints[0].files[0].symbols[0].id, "test", client),
+    /synthesis unavailable/,
+  );
+  assert.ok(Date.now() - started < 2000);
+});
 test("AI schema drops unsupported citations and rejects invalid output", () => {
   assert.throws(() =>
     validateSynthesis({ claims: [{ text: "invented", citations: ["E9"] }] }, [
