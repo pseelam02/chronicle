@@ -1,3 +1,25 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseFile,dependencies} from '../packages/analyzer/parser.ts';
-test('AST extracts TSX, declarations, routes and methods',()=>{const f=parseFile('x.tsx','export interface User { id: string }; export class A { run() {} }; export const View=()=> <div/>; export function GET() { return 1; }');assert.deepEqual(f.symbols.map(s=>s.kind),['interface','class','method','function','route']);});
-test('relative imports and calls carry evidence',()=>{const a='export function sum() {return 1}';const b="import {sum} from './a'; export function run() {return sum()}";const e=dependencies([parseFile('a.ts',a),parseFile('b.ts',b)],new Map([['a.ts',a],['b.ts',b]]));assert.ok(e.some(x=>x.kind==='calls'&&x.confidence<1));});
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { parseFile, dependencies } from "../packages/analyzer/parser.ts";
+test("AST extracts TSX, declarations, routes and methods", () => {
+  const f = parseFile(
+    "x.tsx",
+    "export interface User { id: string }; export class A { run() {} }; export const View=()=> <div/>; export function GET() { return 1; }",
+  );
+  assert.deepEqual(
+    f.symbols.map((s) => s.kind),
+    ["interface", "class", "method", "function", "route"],
+  );
+});
+test("relative imports and calls carry evidence", () => {
+  const a = "export function sum() {return 1}";
+  const b = "import {sum} from './a'; export function run() {return sum()}";
+  const e = dependencies(
+    [parseFile("a.ts", a), parseFile("b.ts", b)],
+    new Map([
+      ["a.ts", a],
+      ["b.ts", b],
+    ]),
+  );
+  assert.ok(e.some((x) => x.kind === "calls" && x.confidence < 1));
+});
