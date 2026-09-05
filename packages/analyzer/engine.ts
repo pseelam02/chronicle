@@ -171,14 +171,22 @@ export async function analyze(
     warnings.push(
       "Only the first 20 branch/tag tips are preloaded; use the commit selector or --ref for others.",
     );
-  const current = commits.at(-1)!;
+  const current =
+    commits.find((c) => c.sha === actualHead) ||
+    (await history(root, actualHead)).at(-1)!;
   if (actualHead !== head) {
     const c = (await history(root, actualHead)).at(-1)!;
     await snapshot(actualHead, c, "HEAD");
   }
   await snapshot(
     "STAGED",
-    { ...current, sha: actualHead, subject: "Git index snapshot" },
+    {
+      ...current,
+      sha: actualHead,
+      author: "Local checkout",
+      timestamp: new Date().toISOString(),
+      subject: "Git index snapshot",
+    },
     "Staged",
   );
   await snapshot(
@@ -186,6 +194,8 @@ export async function analyze(
     {
       ...current,
       sha: actualHead,
+      author: "Local checkout",
+      timestamp: new Date().toISOString(),
       subject: "Working tree including untracked TypeScript",
     },
     "Working tree",

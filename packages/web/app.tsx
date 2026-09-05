@@ -217,7 +217,9 @@ function App() {
         <div className="side-bottom">
           <div className="local-icon">⌂</div>
           <strong>Your code stays yours.</strong>
-          <p>Git history and source analysis never leave this computer.</p>
+          <p>
+            Analysis stays local. Optional AI uses only evidence you approve.
+          </p>
           <small>Chronicle 0.1.0</small>
         </div>
       </aside>

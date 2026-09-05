@@ -20,7 +20,7 @@ test("malicious paths, hooks and scripts are inert", async () => {
     await symlink(
       path.join(f.root, ".."),
       path.join(f.root, "src-escape"),
-      "dir",
+      process.platform === "win32" ? "junction" : "dir",
     );
     await assert.rejects(() => safeRead(f.root, "src-escape/outside.ts"));
     const a = await analyze(f.root, parseArgs(["--no-ai"]), () => {});
