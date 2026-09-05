@@ -304,7 +304,9 @@ function App() {
                 Contract <i className="dot orange" />
                 Route
               </span>
-              <span>Scroll to zoom · Drag to pan · Select to explore</span>
+              <span>
+                Ctrl + scroll to zoom · Drag to pan · Select to explore
+              </span>
             </div>
           </section>
         ) : (
@@ -476,13 +478,28 @@ function Graph({
     ),
   ];
   const positions = new Map<string, { x: number; y: number }>();
+  const columns = groups.length <= 4 ? 2 : 3;
+  const rowHeights: number[] = [];
+  groups.forEach((g, i) => {
+    const row = Math.floor(i / columns);
+    rowHeights[row] = Math.max(
+      rowHeights[row] || 0,
+      shown.filter(
+        (n) => (n.path.split("/").slice(0, -1).join("/") || ".") === g,
+      ).length *
+        66 +
+        75,
+    );
+  });
+  const rowY = (i: number) =>
+    rowHeights.slice(0, Math.floor(i / columns)).reduce((a, b) => a + b, 0);
   groups.forEach((g, gi) =>
     shown
       .filter((n) => (n.path.split("/").slice(0, -1).join("/") || ".") === g)
       .forEach((n, ni) =>
         positions.set(n.id, {
-          x: 40 + (gi % 3) * 300,
-          y: 65 + Math.floor(gi / 3) * 340 + ni * 66,
+          x: 40 + (gi % columns) * 300,
+          y: 65 + rowY(gi) + ni * 66,
         }),
       ),
   );
@@ -501,9 +518,10 @@ function Graph({
       }}
       onPointerUp={() => setDrag(undefined)}
       onPointerLeave={() => setDrag(undefined)}
-      onWheel={(e) =>
-        setZoom((z) => Math.max(0.4, Math.min(2, z - e.deltaY * 0.001)))
-      }
+      onWheel={(e) => {
+        if (e.ctrlKey || e.metaKey)
+          setZoom((z) => Math.max(0.4, Math.min(2, z - e.deltaY * 0.001)));
+      }}
     >
       {!nodes.length ? (
         <div className="empty">
@@ -514,7 +532,7 @@ function Graph({
         <svg
           role="img"
           aria-label="Interactive architecture graph"
-          viewBox={`0 0 940 ${height}`}
+          viewBox={`0 0 ${columns * 300 + 40} ${height}`}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) {
               setDrag({ x: e.clientX, y: e.clientY });
@@ -527,8 +545,8 @@ function Graph({
               <g key={g}>
                 <rect
                   className="group-box"
-                  x={25 + (i % 3) * 300}
-                  y={Math.floor(i / 3) * 340 + 20}
+                  x={25 + (i % columns) * 300}
+                  y={rowY(i) + 20}
                   width="280"
                   height={Math.max(
                     170,
@@ -543,8 +561,8 @@ function Graph({
                 />
                 <text
                   className="group-title"
-                  x={42 + (i % 3) * 300}
-                  y={Math.floor(i / 3) * 340 + 44}
+                  x={42 + (i % columns) * 300}
+                  y={rowY(i) + 44}
                 >
                   ▱ {g}
                 </text>
@@ -623,7 +641,7 @@ function Graph({
       <svg
         className="minimap"
         aria-label="Graph minimap"
-        viewBox={`0 0 940 ${height}`}
+        viewBox={`0 0 ${columns * 300 + 40} ${height}`}
       >
         {[...positions].map(([id, p]) => (
           <rect key={id} x={p.x} y={p.y} width="250" height="45" rx="5" />
@@ -722,6 +740,7 @@ function Detail({
 }) {
   const e = explain(data, node.id);
   const [consent, setConsent] = useState(false);
+  const [preview, setPreview] = useState("");
   const [synthesis, setSynthesis] = useState("");
   const [busy, setBusy] = useState(false);
   const [commit, setCommit] = useState("");
@@ -795,14 +814,21 @@ function Detail({
       </p>
       {ai && (
         <>
-          <button onClick={() => setConsent(!consent)}>
+          <button
+            onClick={() => {
+              api<unknown>(`/api/ai-preview?id=${node.id}`)
+                .then((value) => {
+                  setPreview(JSON.stringify(value, null, 2));
+                  setConsent(true);
+                })
+                .catch((err) => setSynthesis(err.message));
+            }}
+          >
             Preview evidence to send
           </button>
           {consent && (
             <div>
-              <pre className="ai-preview">
-                {JSON.stringify(e.evidence.slice(0, 8), null, 2)}
-              </pre>
+              <pre className="ai-preview">{preview}</pre>
               <button
                 className="primary"
                 disabled={busy}

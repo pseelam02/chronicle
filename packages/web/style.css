@@ -1,4 +1,3 @@
-@import url("data:text/css,");
 :root {
   font-family:
     Inter,
@@ -342,7 +341,7 @@ main {
 }
 .graph {
   position: relative;
-  height: 405px;
+  height: 480px;
   overflow: hidden;
   background-color: #121811;
   background-image: radial-gradient(#39432d 1px, transparent 1px);
