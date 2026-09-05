@@ -50,7 +50,7 @@ export function matchLineage(
       used.add(o.id);
       remap.set(n.id, o.id);
       n.id = o.id;
-      n.confidence = confidence;
+      n.confidence = Math.min(confidence, o.confidence);
       n.evidence = evidence;
     }
   }
@@ -75,8 +75,7 @@ export function compare(a: Checkpoint, b: Checkpoint) {
     if (!old) added.push(s);
     else {
       if (old.name !== s.name || old.path !== s.path) moved.push(s);
-      if (old.fingerprint !== s.fingerprint || old.signature !== s.signature)
-        modified.push(s);
+      if (old.contentHash !== s.contentHash) modified.push(s);
     }
   }
   for (const s of before.values()) if (!after.has(s.id)) removed.push(s);

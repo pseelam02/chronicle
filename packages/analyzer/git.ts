@@ -24,11 +24,17 @@ export async function git(root: string, args: string[]): Promise<string> {
       timeout: 30000,
       maxBuffer: 24 * 1024 * 1024,
       env: {
-        ...process.env,
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([key]) => !key.startsWith("GIT_"),
+          ),
+        ),
         GIT_OPTIONAL_LOCKS: "0",
         GIT_TERMINAL_PROMPT: "0",
         GIT_CONFIG_NOSYSTEM: "1",
         GIT_NO_REPLACE_OBJECTS: "1",
+        GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+        GIT_NO_LAZY_FETCH: "1",
       },
     },
   );

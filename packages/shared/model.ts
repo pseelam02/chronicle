@@ -8,6 +8,7 @@ export interface SymbolNode {
   end: number;
   signature: string;
   fingerprint: string;
+  contentHash: string;
   complexity: number;
   exported: boolean;
   confidence: number;
@@ -23,7 +24,7 @@ export interface Edge {
 export interface FileNode {
   path: string;
   hash: string;
-  imports: { name: string; specifier: string }[];
+  imports: { name: string; specifier: string; imported?: string }[];
   symbols: SymbolNode[];
 }
 export interface Commit {

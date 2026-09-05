@@ -24,7 +24,17 @@ export function parseFile(p: string, source: string): FileNode {
             : [];
       if (n.importClause?.name) names.push(n.importClause.name.text);
       for (const name of names.length ? names : ["*"])
-        imports.push({ name, specifier: n.moduleSpecifier.text });
+        imports.push({
+          name,
+          specifier: n.moduleSpecifier.text,
+          imported:
+            bindings && ts.isNamedImports(bindings)
+              ? bindings.elements.find((x) => x.name.text === name)
+                  ?.propertyName?.text || name
+              : n.importClause?.name?.text === name
+                ? "default"
+                : name,
+        });
     }
     let kind = "";
     let name = "";
@@ -85,6 +95,7 @@ export function parseFile(p: string, source: string): FileNode {
           .slice(0, text.indexOf("{") < 0 ? 160 : text.indexOf("{"))
           .slice(0, 220),
         fingerprint: hash(normalized),
+        contentHash: hash(text),
         complexity:
           1 +
           (text.match(/\b(if|for|while|case|catch)\b|\?\?|&&|\|\|/g) || [])
@@ -106,6 +117,7 @@ export function dependencies(
   const edges: Edge[] = [];
   const byPath = new Map(files.map((f) => [f.path, f]));
   for (const file of files) {
+    const bindings = new Map(file.symbols.map((s) => [s.name, s]));
     for (const symbol of file.symbols)
       edges.push({
         source: `file:${file.path}`,
@@ -113,6 +125,14 @@ export function dependencies(
         kind: "defines",
         confidence: 1,
         evidence: `${file.path}:${symbol.line}`,
+      });
+    for (const symbol of file.symbols.filter((s) => s.exported))
+      edges.push({
+        source: `file:${file.path}`,
+        target: symbol.id,
+        kind: "exports",
+        confidence: 1,
+        evidence: `Export modifier at ${file.path}:${symbol.line}`,
       });
     for (const imp of file.imports) {
       if (!imp.specifier.startsWith(".")) continue;
@@ -139,19 +159,34 @@ export function dependencies(
         evidence: `import ${imp.name} from ${imp.specifier}`,
       });
       const dest = target.symbols.find(
-        (s) => s.name === imp.name && s.exported,
+        (s) => s.name === (imp.imported || imp.name) && s.exported,
       );
+      if (dest) bindings.set(imp.name, dest);
       if (dest) {
         for (const sym of file.symbols) {
           const body = (sources.get(file.path) || "")
             .split("\n")
             .slice(sym.line - 1, sym.end)
             .join("\n");
-          if (
-            new RegExp(`\\b${imp.name.replace(/[$]/g, "\\$")}\\s*\\(`).test(
-              body,
+          const subtree = ts.createSourceFile(
+            file.path,
+            body,
+            ts.ScriptTarget.Latest,
+            true,
+            file.path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+          );
+          let called = false;
+          const walk = (n: ts.Node) => {
+            if (
+              ts.isCallExpression(n) &&
+              ts.isIdentifier(n.expression) &&
+              n.expression.text === imp.name
             )
-          )
+              called = true;
+            ts.forEachChild(n, walk);
+          };
+          walk(subtree);
+          if (called)
             edges.push({
               source: sym.id,
               target: dest.id,
@@ -162,6 +197,59 @@ export function dependencies(
         }
       }
     }
+    const source = ts.createSourceFile(
+      file.path,
+      sources.get(file.path) || "",
+      ts.ScriptTarget.Latest,
+      true,
+      file.path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    const walk = (n: ts.Node) => {
+      const line =
+        source.getLineAndCharacterOfPosition(n.getStart(source)).line + 1;
+      const owner = file.symbols
+        .filter((s) => s.line <= line && s.end >= line)
+        .sort((a, b) => a.end - a.line - (b.end - b.line))[0];
+      if (owner && ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
+        const dest = bindings.get(n.expression.text);
+        if (dest && dest.path === file.path)
+          edges.push({
+            source: owner.id,
+            target: dest.id,
+            kind: "calls",
+            confidence: 0.75,
+            evidence: `Local identifier call at ${file.path}:${line}; lexical shadowing may apply`,
+          });
+      }
+      if (owner && ts.isTypeReferenceNode(n) && ts.isIdentifier(n.typeName)) {
+        const dest = bindings.get(n.typeName.text);
+        if (dest && dest.id !== owner.id)
+          edges.push({
+            source: owner.id,
+            target: dest.id,
+            kind: "depends on",
+            confidence: 0.8,
+            evidence: `Type reference at ${file.path}:${line}`,
+          });
+      }
+      if (owner && ts.isHeritageClause(n))
+        for (const t of n.types) {
+          const dest = bindings.get(t.expression.getText(source));
+          if (dest)
+            edges.push({
+              source: owner.id,
+              target: dest.id,
+              kind:
+                n.token === ts.SyntaxKind.ExtendsKeyword
+                  ? "extends"
+                  : "implements",
+              confidence: 0.9,
+              evidence: `Heritage clause at ${file.path}:${line}`,
+            });
+        }
+      ts.forEachChild(n, walk);
+    };
+    walk(source);
   }
   return edges.filter(
     (e, i, a) =>

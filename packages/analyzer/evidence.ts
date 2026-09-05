@@ -10,7 +10,7 @@ export function explain(a: Analysis, id: string) {
     .filter(
       (o, i) =>
         !i ||
-        o.symbol.fingerprint !== occurrences[i - 1].symbol.fingerprint ||
+        o.symbol.contentHash !== occurrences[i - 1].symbol.contentHash ||
         o.symbol.path !== occurrences[i - 1].symbol.path ||
         o.symbol.name !== occurrences[i - 1].symbol.name,
     )
@@ -53,7 +53,7 @@ export function cochanges(
       c.files.flatMap((f) => f.symbols).find((s) => s.id === id);
     const x = find(before),
       y = find(after);
-    if (!x || !y || x.fingerprint === y.fingerprint) continue;
+    if (!x || !y || x.contentHash === y.contentHash) continue;
     for (const f of after.files) {
       if (f.path === y.path) continue;
       const old = before.files.find((o) => o.path === f.path);
