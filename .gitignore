@@ -1,0 +1,9 @@
+.env.local
+node_modules/
+dist/
+artifacts/
+test-results/
+playwright-report/
+*.tgz
+.env
+.DS_Store
