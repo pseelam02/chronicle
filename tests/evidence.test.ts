@@ -1,0 +1,16 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { demo } from "../packages/analyzer/demo.ts";
+import { explain } from "../packages/analyzer/evidence.ts";
+test("offline demo uses production lineage and historical evidence", () => {
+  const a = demo();
+  const n = a.checkpoints
+    .at(-1)!
+    .files.flatMap((f) => f.symbols)
+    .find((s) => s.name === "calculateTotal")!;
+  const e = explain(a, n.id);
+  assert.equal(e.occurrences.length, 6);
+  assert.equal(e.evidence[0].name, "subtotal");
+  assert.ok(e.evidence.every((x) => a.commits.some((c) => c.sha === x.sha)));
+  assert.throws(() => explain(a, "missing"));
+});

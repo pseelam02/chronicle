@@ -1,0 +1,51 @@
+{
+  "name": "@pseelam/chronicle",
+  "version": "0.1.0",
+  "description": "A local-first Git time machine for TypeScript repositories",
+  "type": "module",
+  "bin": {
+    "chronicle": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "repository": "github:pseelam02/chronicle",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && node dist/cli.js --demo --no-open",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "lint": "eslint packages tests scripts",
+    "format": "prettier --write packages tests scripts docs *.json *.md",
+    "format:check": "prettier --check packages tests scripts docs *.json *.md",
+    "prepack": "npm run build",
+    "test:e2e": "tsx --test tests/browser.e2e.ts",
+    "test:live-ai": "tsx scripts/live-ai.ts",
+    "test:pack": "tsx scripts/packed-test.ts",
+    "audit:secrets": "node scripts/audit-history.mjs"
+  },
+  "dependencies": {
+    "openai": "7.10.0",
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "esbuild": "0.28.2",
+    "eslint": "10.10.0",
+    "prettier": "3.9.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tsx": "4.23.13",
+    "typescript-eslint": "8.69.0"
+  }
+}

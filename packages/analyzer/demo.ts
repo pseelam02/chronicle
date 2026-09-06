@@ -1,0 +1,99 @@
+import { parseFile, dependencies } from "./parser.ts";
+import { matchLineage } from "./temporal.ts";
+import type { Analysis, Checkpoint, Commit } from "../shared/model.ts";
+export function demo(): Analysis {
+  const checkpoints: Checkpoint[] = [];
+  const commits: Commit[] = [];
+  const versions = [
+    {
+      "src/core/cart.ts":
+        "export interface Item { price: number; quantity: number }\nexport function subtotal(items: Item[]) { return items.reduce((n, i) => n + i.price * i.quantity, 0); }",
+      "src/core/currency.ts":
+        "export function formatMoney(value: number) { return `$${value.toFixed(2)}`; }",
+      "src/core/legacy.ts":
+        "export function legacyTax(value: number) { return value * 0.05; }",
+    },
+    {
+      "src/api/checkout.ts":
+        "import { subtotal } from '../core/cart';\nexport function POST() { return subtotal([]); }",
+      "src/ui/Cart.tsx":
+        "import { formatMoney } from '../core/currency';\nexport function Cart() { return <section>{formatMoney(42)}</section>; }",
+    },
+    {
+      "src/core/discount.ts":
+        "export function applyDiscount(total: number, percent: number) { if (percent > 100) return 0; return total * (1 - percent / 100); }",
+      "src/core/cart.test.ts":
+        "import { subtotal } from './cart';\nexport function testCart() { return subtotal([]) === 0; }",
+    },
+    {
+      "src/services/pricing.ts":
+        "export interface Item { price: number; quantity: number }\nexport function subtotal(items: Item[]) { return items.reduce((n, i) => n + i.price * i.quantity, 0); }",
+      "src/api/checkout.ts":
+        "import { subtotal } from '../services/pricing';\nimport { applyDiscount } from '../core/discount';\nexport function POST() { return applyDiscount(subtotal([]), 10); }",
+      "src/core/cart.test.ts":
+        "import { subtotal } from '../services/pricing';\nexport function testCart() { return subtotal([]) === 0; }",
+    },
+    {
+      "src/services/pricing.ts":
+        "export interface Item { price: number; quantity: number }\nexport function calculateTotal(items: Item[]) { return items.reduce((n, i) => n + i.price * i.quantity, 0); }",
+      "src/api/checkout.ts":
+        "import { calculateTotal } from '../services/pricing';\nimport { applyDiscount } from '../core/discount';\nexport function POST() { return applyDiscount(calculateTotal([]), 10); }",
+      "src/core/cart.test.ts":
+        "import { calculateTotal } from '../services/pricing';\nexport function testCart() { return calculateTotal([]) === 0; }",
+    },
+    {
+      "src/api/orders.ts":
+        "import { calculateTotal } from '../services/pricing';\nexport function GET() { return calculateTotal([]); }",
+      "src/services/receipt.ts":
+        "import { formatMoney } from '../core/currency';\nexport function receipt(total: number) { return formatMoney(total); }",
+    },
+  ];
+  const subjects = [
+    "Introduce cart totals and currency formatting",
+    "Build checkout endpoint and cart interface",
+    "Support promotional discounts with cart tests",
+    "Extract pricing service from cart module",
+    "Rename subtotal to calculateTotal",
+    "Expose orders and receipt generation",
+  ];
+  const sources: Record<string, string> = {};
+  versions.forEach((v, i) => {
+    Object.assign(sources, v);
+    if (i === 3) delete sources["src/core/cart.ts"];
+    if (i === 5) delete sources["src/core/legacy.ts"];
+    const commit: Commit = {
+      sha: (i + 1).toString(16).repeat(40),
+      parents: i ? [commits[i - 1].sha] : [],
+      author: ["Maya Chen", "Alex Rivera"][i % 2],
+      timestamp: new Date(Date.UTC(2026, 7, 10 + i * 3)).toISOString(),
+      subject: subjects[i],
+      body: "Synthetic history bundled with Chronicle. No external repository is contacted.",
+    };
+    commits.push(commit);
+    const files = Object.entries(sources).map(([p, s]) => parseFile(p, s));
+    const cp = {
+      ref: commit.sha,
+      label: i === 0 ? "v0.1.0" : i === 5 ? "main" : commit.sha.slice(0, 7),
+      commit,
+      files,
+      edges: dependencies(files, new Map(Object.entries(sources))),
+    };
+    matchLineage(checkpoints.at(-1), cp);
+    checkpoints.push(cp);
+  });
+  return {
+    version: 1,
+    name: "orbit-commerce",
+    head: commits.at(-1)!.sha,
+    ref: "main",
+    commits,
+    refs: [
+      { name: "main", sha: commits.at(-1)!.sha },
+      { name: "v0.1.0", sha: commits[0].sha },
+    ],
+    checkpoints,
+    analyzedAt: new Date().toISOString(),
+    warnings: [],
+    demo: true,
+  };
+}

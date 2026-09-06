@@ -1,0 +1,23 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { fixture } from "./fixture.ts";
+import { cacheKey, readCache, writeCache } from "../packages/analyzer/cache.ts";
+import { parseArgs } from "../packages/cli/args.ts";
+import type { Analysis } from "../packages/shared/model.ts";
+test("cache invalidates for dirty content, handles absent entries and round-trips", async () => {
+  const f = await fixture();
+  try {
+    const a = await cacheKey(f.root, parseArgs([]));
+    await f.save("src/extra.ts", "export type Changed = string");
+    assert.notEqual(await cacheKey(f.root, parseArgs([])), a);
+    assert.equal(await readCache("absent", f.root), undefined);
+    await writeCache(
+      "test",
+      { version: 1, checkpoints: [], commits: [] } as unknown as Analysis,
+      f.root,
+    );
+    assert.equal((await readCache("test", f.root))?.version, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
